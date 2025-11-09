@@ -1,0 +1,103 @@
+
+module spi_slave_select(PCLK,PRESET_n,mstr_i,send_data_i,spiswai_i,spi_mode_i,ss_o,baudratedivisor_i,tip_o,recieve_data_o);
+input PRESET_n,mstr_i,send_data_i,spiswai_i,PCLK;
+input [1:0] spi_mode_i;
+input [11:0] baudratedivisor_i;
+output reg ss_o,recieve_data_o;
+output tip_o;
+
+reg[15:0] count;
+wire [15:0] target;
+reg rcv_s;
+
+assign target= (baudratedivisor_i/2) * 5'b10000;
+assign tip_o = (~ss_o);
+
+//Recieve data logic
+
+always@(posedge PCLK, negedge PRESET_n)
+begin
+	if(!PRESET_n)
+	begin
+		recieve_data_o<=1'b0;
+	end
+	else recieve_data_o<=rcv_s;
+end
+
+
+
+//rcv logic
+always@(posedge PCLK , negedge PRESET_n)
+begin
+	if(!PRESET_n)
+	rcv_s<=1'b0;
+	else if(!spiswai_i && (spi_mode_i== 2'b01 || spi_mode_i== 2'b00) && mstr_i)
+	begin
+		if(send_data_i==1'b1)
+				 begin
+            rcv_s<=rcv_s;
+        end
+        else if (count<=target-'d1)
+        begin
+            if(count==target-'d1)
+                rcv_s<=1'b1;
+        end
+    
+            else
+            rcv_s<=0;
+    end
+    
+        
+end
+	//////Target is not getting the value in top Module ///////////
+	
+// slave select o/p
+
+always@(posedge PCLK , negedge PRESET_n)
+begin
+	if(!PRESET_n)
+		ss_o<=1'b1;
+	else 
+	begin
+	if (!spiswai_i && (spi_mode_i==2'b01 ||spi_mode_i==2'b00) && mstr_i)
+	begin
+		if(send_data_i)
+			ss_o<=1'b0;
+		else
+		begin
+			if(count<=target-1'b1)
+				ss_o<=1'b0;
+			else
+				ss_o<=1'b1;
+		end
+	end
+	end
+end
+
+//count variable
+always@(posedge PCLK , negedge PRESET_n)
+begin
+	if(!PRESET_n)
+		count<=16'hfff;
+	else
+	begin
+		if(((!spiswai_i && spi_mode_i==2'b01)||spi_mode_i==2'b00)&& mstr_i)
+		begin
+			if(send_data_i)
+				count<=16'b0;
+			else
+			begin
+				if(count<=target-1'b1)
+					count<=count+1'b1;
+				else
+					count<=16'hfff;
+			end
+		end
+		else count<=16'hfff;
+	end
+end
+
+
+endmodule
+
+
